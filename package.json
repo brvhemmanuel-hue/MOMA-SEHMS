@@ -1,0 +1,38 @@
+{
+  "name": "moma-sehms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mount Olivet Methodist Academy School Exercise & Homework Monitoring System",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "tsc --noEmit",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:seed": "node scripts/seed.mjs",
+    "db:setup-admin": "node scripts/create-admin.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "chart.js": "^4.4.3",
+    "exceljs": "^4.4.0",
+    "jose": "^5.6.3",
+    "next": "14.2.15",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.12.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.11.6",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}

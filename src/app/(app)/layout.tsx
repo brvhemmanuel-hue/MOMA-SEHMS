@@ -1,0 +1,47 @@
+import Image from 'next/image';
+import { requireSession } from '@/lib/auth';
+import { one } from '@/lib/db';
+import NavLinks, { type NavItem } from '@/components/NavLinks';
+import { logoutAction } from '../actions/auth';
+
+export const dynamic = 'force-dynamic';
+
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const s = await requireSession();
+  const unread = Number((await one<{ n: string }>('select count(*) n from notifications where user_id=$1 and not is_read', [s.userId]))?.n ?? 0);
+  const items: NavItem[] = [{ href: '/dashboard', label: 'Dashboard' }, { href: '/work', label: s.role === 'teacher' ? 'My assignments' : 'Assignments' }];
+  if (s.role === 'teacher') items.push({ href: '/work/new', label: 'New assignment' });
+  items.push({ href: '/reports', label: 'Reports' }, { href: '/notifications', label: 'Notifications', badge: unread });
+  if (s.role === 'school_admin') {
+    items.push(
+      { group: 'School setup' }, { href: '/classes', label: 'Classes' }, { href: '/subjects', label: 'Subjects' }, { href: '/teachers', label: 'Teachers' },
+      { href: '/students', label: 'Students' }, { href: '/teacher-assignments', label: 'Teacher assignments' }, { href: '/setup', label: 'Years, terms, departments' },
+      { group: 'Administration' }, { href: '/imports', label: 'Import Centre' }, { href: '/accounts', label: 'External Administrator' }, { href: '/audit', label: 'Audit log' }, { href: '/settings', label: 'Settings' },
+    );
+  }
+  items.push({ group: 'Account' }, { href: '/account', label: 'Password' });
+  const role = s.role === 'school_admin' ? 'School Administrator' : s.role === 'external_admin' ? 'External Administrator' : `Teacher ${s.teacherNo ?? ''}`;
+  return (
+    <div className="shell">
+      <input type="checkbox" id="navtoggle" className="sr-only" aria-label="Toggle menu" />
+      <div className="topbar">
+        <strong>MOMA-SEHMS</strong>
+        <label htmlFor="navtoggle">Menu</label>
+      </div>
+      <label htmlFor="navtoggle" className="scrim" aria-hidden="true" />
+      <aside className="side">
+        <a className="brand" href="/dashboard">
+          <Image src="/emblem.png" alt="" width={46} height={46} />
+          <div><b>Mount Olivet Methodist Academy</b><span>Exercise &amp; Homework Monitoring</span></div>
+        </a>
+        <NavLinks items={items} />
+        <div className="who">
+          <div><strong>{s.fullName}</strong></div>
+          <div className="small" style={{ color: '#aebbe6' }}>{role}</div>
+          <form action={logoutAction}><button className="btn ghost sm">Sign out</button></form>
+        </div>
+      </aside>
+      <main className="main" id="main">{children}</main>
+    </div>
+  );
+}
