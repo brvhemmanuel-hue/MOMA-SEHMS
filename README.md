@@ -22,14 +22,17 @@ Teacher-managed monitoring only. Students have no accounts. There is no marks, s
    | `CRON_SECRET` | any long random string (Vercel Cron sends it automatically) |
 4. Deploy, add your custom domain (HTTPS is required for PWA).
 5. Sign in as the administrator. You must change the password first.
-6. **Setup order** (Import Centre enforces it): Years, terms, departments (optional) > Classes > Subjects > Teachers > Students > External Admin > Teacher assignments. Download the template from Import Centre; `samples/School_Data_Import_Samples_DEMO.xlsx` shows filled examples.
+6. **Setup order**: Years and terms (Years, terms, departments) > Classes (BASIC 4 A to BASIC 9 B) > Subjects > Students. Each of the Classes, Subjects and Students pages has its own Excel and CSV template, download and upload. `samples/School_Data_Import_Samples_DEMO.xlsx` shows filled examples.
+7. **Teachers create their own accounts** at `/register` (the sign-in page links to it). They need the school access code shown on the Teachers page, then choose their level (Lower Primary, Upper Primary or JHS), classes and subjects, and see those students straight away. Close sign-up or change the code from the Teachers page. A teacher who teaches both Upper Primary and JHS ticks both levels. Teachers can change their classes later under My classes and subjects, and can add students (one by one or from an Excel or CSV list) to the classes they handle under My students.
+
+**Updating an existing deployment**: replace the files, push to GitHub, then run `npm run db:migrate` once (it applies `db/002_levels_registration.sql`, which adds class levels and the access code). Or paste that file into the Neon SQL Editor.
 
 `npm run db:seed` loads clearly marked **demonstration data** (never run in production). Demo logins use password `Demo@12345`.
 
 **Cron**: `vercel.json` schedules `/api/cron/daily` once a day, which fits the free Hobby plan. On Pro you may use a more frequent schedule. Correctness never depends on the cron: on-time/late is decided when a submission is recorded, and the final snapshot is also created lazily on the first read after a deadline.
 
 ## 2. How the rules are implemented
-- **Roles**: `school_admin`, `external_admin` (read-only everywhere), `teacher`. Every server action and route re-checks role and, for teachers, the active teacher assignment for that class and subject (`lib/rbac.ts`).
+- **Roles**: `school_admin`, `external_admin` (read-only everywhere), `teacher` (self-registered with the school access code; the administrator can review, deactivate and reset). Every server action and route re-checks role and, for teachers, the active teacher assignment for that class and subject (`lib/rbac.ts`).
 - **Generated IDs**: `T-0001`, `S-2026-0001`, `CLS-0001`, `SUB-0001` come from `id_counters` via an auto-committed upsert (`lib/ids.ts`). Never typed or imported; unique and never reused (a rolled-back create leaves a gap, never a duplicate).
 - **Expected students**: captured into `assignment_expected_students` when an assignment is created. Class changes close the old membership and open a new one; existing assignments are untouched.
 - **Live progress vs final figures**: live = submitted so far / expected. On time or late is classified at the moment of recording against the deadline in force. The final snapshot (`assignment_final_snapshots`) counts timestamps at or before the deadline, is idempotent (unique per assignment and deadline), and later submissions never change it.

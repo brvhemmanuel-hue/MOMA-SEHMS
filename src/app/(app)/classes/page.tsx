@@ -2,9 +2,16 @@ import { requireSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { ActionForm } from '@/components/ActionForm';
 import { Badge, PageHead } from '@/components/ui';
+import BulkPanel from '@/components/BulkPanel';
+import { SECTIONS, sectionLabel } from '@/lib/levels';
 import { saveClass } from '../../actions/admin';
 
 export const metadata = { title: 'Classes' };
+export const dynamic = 'force-dynamic';
+
+const SectionSelect = ({ value }: { value?: string | null }) => (
+  <select name="section" defaultValue={value ?? ''}><option value="">Detect from the class name</option>{SECTIONS.map((x) => <option key={x.key} value={x.key}>{x.label} ({x.hint})</option>)}</select>
+);
 
 export default async function ClassesPage({ searchParams }: { searchParams: { year?: string } }) {
   await requireSession(['school_admin']);
@@ -24,27 +31,27 @@ export default async function ClassesPage({ searchParams }: { searchParams: { ye
         <details className="panel" open={!classes.length}><summary>Add class</summary><div>
           <ActionForm action={saveClass} submit="Create class" className="form-grid">
             <input type="hidden" name="year" value={yearId} />
-            <div><label htmlFor="c-name">Class name</label><input id="c-name" name="name" placeholder="JHS 1A" required /></div>
-            <div><label htmlFor="c-level">Level or year</label><input id="c-level" name="level" placeholder="JHS 1" /></div>
+            <div><label htmlFor="c-name">Class name</label><input id="c-name" name="name" placeholder="BASIC 4 A" required /></div>
+            <div><label htmlFor="c-sec">Level</label><SectionSelect /></div>
             <div><label htmlFor="c-prog">Programme</label><input id="c-prog" name="programme" placeholder="General" /></div>
             <div><label htmlFor="c-dept">Department (optional)</label><select id="c-dept" name="department"><option value="">None</option>{depts.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
           </ActionForm></div></details>
+        <BulkPanel entity="classes" />
         <div className="card flat tablewrap"><table>
-          <thead><tr><th>Code</th><th>Class</th><th>Level</th><th>Programme</th><th className="num">Students</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Code</th><th>Class</th><th>Level</th><th className="num">Students</th><th>Status</th><th></th></tr></thead>
           <tbody>{classes.map((c: any) => (
-            <tr key={c.id}><td>{c.class_code}</td><td><strong>{c.name}</strong></td><td>{c.level}</td><td>{c.programme}</td><td className="num">{c.students}</td>
+            <tr key={c.id}><td>{c.class_code}</td><td><strong>{c.name}</strong></td><td>{c.section ? <Badge tone="info">{sectionLabel(c.section)}</Badge> : <Badge tone="bad">Not set</Badge>}</td><td className="num">{c.students}</td>
               <td><Badge tone={c.status === 'active' ? 'ok' : ''}>{c.status}</Badge></td>
               <td><details className="inline"><summary className="btn ghost sm">Edit</summary>
                 <div className="card" style={{ position: 'absolute', zIndex: 4, minWidth: 300, marginTop: 4 }}>
                   <ActionForm action={saveClass} submit="Save" resetOnSuccess={false} className="stack">
                     <input type="hidden" name="id" value={c.id} /><input type="hidden" name="year" value={yearId} />
                     <div><label>Name</label><input name="name" defaultValue={c.name} required /></div>
-                    <div><label>Level</label><input name="level" defaultValue={c.level ?? ''} /></div>
-                    <div><label>Programme</label><input name="programme" defaultValue={c.programme ?? ''} /></div>
+                    <div><label>Level</label><SectionSelect value={c.section} /></div>
                     <div><label>Department</label><select name="department" defaultValue={c.department_id ?? ''}><option value="">None</option>{depts.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
                     <div><label>Status</label><select name="status" defaultValue={c.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
                   </ActionForm></div></details></td></tr>))}
-            {!classes.length && <tr><td colSpan={7} className="empty">No classes in this year yet.</td></tr>}
+            {!classes.length && <tr><td colSpan={6} className="empty">No classes in this year yet.</td></tr>}
           </tbody></table></div></>}
     </div>
   );

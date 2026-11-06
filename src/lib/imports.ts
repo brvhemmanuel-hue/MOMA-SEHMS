@@ -2,11 +2,12 @@ import 'server-only';
 import ExcelJS from 'exceljs';
 import { Readable } from 'stream';
 import { query, one, tx, type Db } from './db';
-import { ENTITIES, FORBIDDEN_COLUMN, REFERENCE_COLUMN, type EntityKey } from './import-defs';
+import { ENTITIES, FORBIDDEN_COLUMN, REFERENCE_COLUMN, normaliseHeader, type EntityKey } from './import-defs';
 import { clean, isEmailOrUsername, normalisePhone, normStatus, normGender } from './validators';
 import { createTeacherAccount, createExternalAdminAccount, enrollStudent } from './accounts';
 import { nextRef } from './ids';
 import { audit } from './audit';
+import { detectSection } from './levels';
 import { getSettings } from './settings';
 
 export type ParsedFile = { headers: string[]; rows: { rowNumber: number; cells: Record<string, string> }[]; ignoredColumns: string[] };
@@ -26,48 +27,55 @@ function cellText(v: any): string {
 export async function parseUpload(buf: Buffer, fileName: string, entity: EntityKey): Promise<ParsedFile> {
   const def = ENTITIES[entity];
   const wb = new ExcelJS.Workbook();
-  let ws: ExcelJS.Worksheet | undefined;
+  const candidates: ExcelJS.Worksheet[] = [];
   if (/\.csv$/i.test(fileName)) {
-    ws = await wb.csv.read(Readable.from(buf));
+    candidates.push(await wb.csv.read(Readable.from(buf)));
   } else if (/\.xlsx$/i.test(fileName)) {
     await wb.xlsx.load(buf as any);
     const visible = wb.worksheets.filter((w) => w.state === 'visible'); // hidden sheets are never read
-    ws = visible.find((w) => w.name.trim().toLowerCase() === def.sheet.toLowerCase()) ?? (visible.length === 1 ? visible[0] : undefined);
-    if (!ws) throw new Error(`Could not find a visible sheet named "${def.sheet}" in this workbook.`);
+    const named = visible.find((w) => w.name.trim().toLowerCase() === def.sheet.toLowerCase());
+    candidates.push(...(named ? [named] : []), ...visible.filter((w) => w !== named));
+    if (!candidates.length) throw new Error('The workbook has no visible sheet.');
   } else {
     throw new Error('Only .xlsx and .csv files are accepted.');
   }
-  // header row = first non-empty row
-  let headerRowNo = 0;
-  ws.eachRow({ includeEmpty: false }, (row, n) => { if (!headerRowNo && row.values && (row.values as any[]).some((v) => cellText(v))) headerRowNo = n; });
-  if (!headerRowNo) throw new Error('The file is empty.');
-  const hdrRow = ws.getRow(headerRowNo);
-  const headers: string[] = [];
-  const colCount = Math.max(hdrRow.cellCount, hdrRow.actualCellCount);
-  for (let c = 1; c <= colCount; c++) headers.push(cellText(hdrRow.getCell(c).value).toLowerCase());
-  const ignoredColumns = headers.filter((h) => h && FORBIDDEN_COLUMN.test(h));
-  const allowed = new Set([...def.headers, REFERENCE_COLUMN]);
-  const unknown = headers.filter((h) => h && !allowed.has(h) && !FORBIDDEN_COLUMN.test(h));
-  const missing = def.headers.filter((h) => !headers.includes(h));
-  if (missing.length || unknown.length) {
-    throw new Error(
-      `Headers do not match the template. ${missing.length ? 'Missing: ' + missing.join(', ') + '. ' : ''}${unknown.length ? 'Unexpected: ' + unknown.join(', ') + '. ' : ''}Download the current template and keep the headers exactly as shown.`,
-    );
+
+  const need = def.needHeaders ?? def.required;
+  const allowed = new Set([...def.headers, ...(def.optional ?? []), REFERENCE_COLUMN]);
+  let lastProblem = 'The file is empty.';
+
+  for (const ws of candidates) {
+    // header row = first non-empty row
+    let headerRowNo = 0;
+    ws.eachRow({ includeEmpty: false }, (row, n) => { if (!headerRowNo && row.values && (row.values as any[]).some((v) => cellText(v))) headerRowNo = n; });
+    if (!headerRowNo) continue;
+    const hdrRow = ws.getRow(headerRowNo);
+    const headers: string[] = [];
+    const colCount = Math.max(hdrRow.cellCount, hdrRow.actualCellCount);
+    for (let c = 1; c <= colCount; c++) headers.push(normaliseHeader(cellText(hdrRow.getCell(c).value)));
+    const missing = need.filter((h) => !headers.includes(h));
+    const unknown = headers.filter((h) => h && !allowed.has(h) && !FORBIDDEN_COLUMN.test(h));
+    if (missing.length || unknown.length) {
+      lastProblem = `Headings do not match the template on sheet "${ws.name}". ${missing.length ? 'Missing: ' + missing.join(', ') + '. ' : ''}${unknown.length ? 'Unexpected: ' + unknown.join(', ') + '. ' : ''}Download the template and keep its headings.`;
+      continue;
+    }
+    const ignoredColumns = headers.filter((h) => h && FORBIDDEN_COLUMN.test(h));
+    const rows: ParsedFile['rows'] = [];
+    for (let r = headerRowNo + 1; r <= ws.rowCount; r++) {
+      const row = ws.getRow(r);
+      const cells: Record<string, string> = {};
+      let any = false;
+      headers.forEach((h, i) => {
+        if (!h || FORBIDDEN_COLUMN.test(h)) return; // ID / password columns are dropped here and never stored
+        const t = cellText(row.getCell(i + 1).value);
+        cells[h] = t;
+        if (t) any = true;
+      });
+      if (any) rows.push({ rowNumber: r, cells });
+    }
+    return { headers, rows, ignoredColumns };
   }
-  const rows: ParsedFile['rows'] = [];
-  for (let r = headerRowNo + 1; r <= ws.rowCount; r++) {
-    const row = ws.getRow(r);
-    const cells: Record<string, string> = {};
-    let any = false;
-    headers.forEach((h, i) => {
-      if (!h || FORBIDDEN_COLUMN.test(h)) return; // ID / password columns are dropped here and never stored
-      const t = cellText(row.getCell(i + 1).value);
-      cells[h] = t;
-      if (t) any = true;
-    });
-    if (any) rows.push({ rowNumber: r, cells });
-  }
-  return { headers, rows, ignoredColumns };
+  throw new Error(lastProblem);
 }
 
 export type RowResult = {
@@ -84,9 +92,9 @@ const key = (s: string) => clean(s).toLowerCase();
 
 async function loadLookups() {
   const [years, terms, classes, subjects, depts, users, students] = await Promise.all([
-    query<any>('select id, name, start_date from academic_years'),
+    query<any>('select id, name, start_date, is_current from academic_years'),
     query<any>('select id, academic_year_id, name from terms'),
-    query<any>('select id, name, academic_year_id from classes'),
+    query<any>('select id, name, academic_year_id from classes where status = $1', ['active']),
     query<any>('select id, name from subjects'),
     query<any>('select id, name from departments'),
     query<any>('select u.id, u.email, u.role, u.status, t.id as teacher_id from users u left join teacher_profiles t on t.user_id = u.id'),
@@ -94,6 +102,9 @@ async function loadLookups() {
                  left join student_class_history h on h.student_id = s.id and h.effective_to is null`),
   ]);
   return {
+    currentYear: years.find((y: any) => y.is_current) ?? null,
+    yearById: new Map<string, any>(years.map((y: any) => [y.id, y])),
+    classById: new Map<string, any>(classes.map((c: any) => [c.id, c])),
     year: new Map<string, any>(years.map((y: any) => [key(y.name), y])),
     termKey: new Map<string, any>(terms.map((t: any) => [`${t.academic_year_id}|${key(t.name)}`, t])),
     classKey: new Map<string, any>(classes.map((c: any) => [`${key(c.name)}|${c.academic_year_id}`, c])),
@@ -105,7 +116,7 @@ async function loadLookups() {
   };
 }
 
-export async function validateRows(entity: EntityKey, parsed: ParsedFile, mode: 'create_only' | 'create_and_update'): Promise<RowResult[]> {
+export async function validateRows(entity: EntityKey, parsed: ParsedFile, mode: 'create_only' | 'create_and_update', opts: { defaultClassId?: string; allowedClassIds?: string[] } = {}): Promise<RowResult[]> {
   const def = ENTITIES[entity];
   const L = await loadLookups();
   const seen = new Map<string, number>();
@@ -137,7 +148,9 @@ export async function validateRows(entity: EntityKey, parsed: ParsedFile, mode: 
       if (!isErr()) {
         const dept = c.department_or_programme ? L.dept.get(key(c.department_or_programme)) : null;
         const existing = L.classKey.get(`${key(c.class_name)}|${year.id}`) ?? (classRefs && ref ? { id: classRefs.get(ref) } : null);
-        res.payload = { name: clean(c.class_name), level: clean(c.level_or_year) || null, programme: clean(c.department_or_programme) || null, department_id: dept?.id ?? null, academic_year_id: year.id, status };
+        const section = detectSection(clean(c.class_name), clean(c.level_or_year));
+        if (!section) warn('The level could not be worked out. Use a name like "BASIC 4 A" or put Upper Primary or JHS in level_or_year. Teachers will not see this class when they sign up until it is fixed.');
+        res.payload = { name: clean(c.class_name), level: clean(c.level_or_year) || null, section, programme: clean(c.department_or_programme) || null, department_id: dept?.id ?? null, academic_year_id: year.id, status };
         if (existing?.id) { res.targetId = existing.id; res.action = mode === 'create_and_update' ? 'update' : 'skip'; if (res.action === 'skip') warn('Class already exists in this academic year. Skipped (create only).'); }
         const k = `${key(c.class_name)}|${year.id}`;
         if (seen.has(k)) err(`Duplicate of row ${seen.get(k)} in this file.`); else seen.set(k, row.rowNumber);
@@ -183,12 +196,20 @@ export async function validateRows(entity: EntityKey, parsed: ParsedFile, mode: 
     }
 
     else if (entity === 'students') {
-      const year = L.year.get(key(c.academic_year));
-      if (!year) err(`Academic year "${c.academic_year}" does not exist.`);
-      const cls = year ? L.classKey.get(`${key(c.class_name)}|${year.id}`) : null;
-      if (year && !cls) err(`Class "${c.class_name}" does not exist in ${c.academic_year}. Import classes first.`);
+      const className = clean(c.class_name);
+      let year: any = c.academic_year ? L.year.get(key(c.academic_year)) : L.currentYear;
+      if (!year) err(c.academic_year ? `Academic year "${c.academic_year}" does not exist.` : 'No current academic year is set. Set it under Years, terms, departments.');
+      let cls: any = null;
+      if (className) {
+        cls = year ? L.classKey.get(`${key(className)}|${year.id}`) : null;
+        if (year && !cls) err(`Class "${className}" does not exist in ${year.name}. Create or import the class first, then check the spelling.`);
+      } else if (opts.defaultClassId && L.classById.get(opts.defaultClassId)) {
+        cls = L.classById.get(opts.defaultClassId);
+        year = L.yearById.get(cls.academic_year_id) ?? year;
+      } else err('The class is blank. Fill the CLASS column, or choose a class for rows without one when you upload.');
+      if (cls && opts.allowedClassIds && !opts.allowedClassIds.includes(cls.id)) { cls = null; err(`You do not handle "${className || 'that class'}". Add it under My classes and subjects first.`); }
       const gender = normGender(c.gender);
-      if (gender === null) err('gender must be male or female (or blank).');
+      if (gender === null) err('GENDER must be M or F (or blank).');
       const status = normStatus(c.student_status, ['active', 'inactive'], 'active');
       if (!status) err('student_status must be active or inactive.');
       if (!isErr()) {
@@ -272,9 +293,9 @@ type ApplyOut = { created?: boolean; updated?: boolean; ref?: string; credential
 
 async function applyRow(db: Db, entity: EntityKey, action: 'create' | 'update', p: any, targetId: string | null, adminId: string): Promise<ApplyOut> {
   if (entity === 'classes') {
-    if (action === 'update') { await db.query('update classes set level=$2, programme=$3, department_id=$4, status=$5 where id=$1', [targetId, p.level, p.programme, p.department_id, p.status]); return { updated: true }; }
+    if (action === 'update') { await db.query('update classes set level=$2, section=$3, programme=$4, department_id=$5, status=$6 where id=$1', [targetId, p.level, p.section, p.programme, p.department_id, p.status]); return { updated: true }; }
     const code = await nextRef('class');
-    await db.query('insert into classes (class_code, name, level, programme, department_id, academic_year_id, status) values ($1,$2,$3,$4,$5,$6,$7)', [code, p.name, p.level, p.programme, p.department_id, p.academic_year_id, p.status]);
+    await db.query('insert into classes (class_code, name, level, section, programme, department_id, academic_year_id, status) values ($1,$2,$3,$4,$5,$6,$7,$8)', [code, p.name, p.level, p.section, p.programme, p.department_id, p.academic_year_id, p.status]);
     return { created: true, ref: code };
   }
   if (entity === 'subjects') {

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC = [/^\/login/, /^\/offline/, /^\/sw\.js$/, /^\/manifest/, /^\/icons\//, /^\/logo\.jpg$/, /^\/emblem\.png$/, /^\/login-bg\.jpg$/, /^\/api\/cron\//, /^\/_next\//, /^\/favicon/, /^\/\.well-known\//, /^\/offline\.html$/];
+const PUBLIC = [/^\/login/, /^\/register/, /^\/offline/, /^\/sw\.js$/, /^\/manifest/, /^\/icons\//, /^\/logo\.jpg$/, /^\/emblem\.png$/, /^\/login-bg\.jpg$/, /^\/api\/cron\//, /^\/_next\//, /^\/favicon/, /^\/\.well-known\//, /^\/offline\.html$/];
 
 /** Cheap gate only. Real session validation (signature, user status, session version) happens on the server for every request. */
 export function middleware(req: NextRequest) {

@@ -11,11 +11,13 @@ export type Settings = {
   temp_password_hours: number;
   report_async_threshold: number;
   report_retention_days: number;
+  registration_open: boolean;
+  registration_code: string;
 };
 
 const DEFAULTS: Settings = {
   timezone: 'Africa/Accra', reminder_window_hours: 24, repeat_threshold: 3, stale_register_days: 7,
-  import_max_rows: 2000, import_max_mb: 5, temp_password_hours: 72, report_async_threshold: 3000, report_retention_days: 3,
+  import_max_rows: 2000, import_max_mb: 5, temp_password_hours: 72, report_async_threshold: 3000, report_retention_days: 3, registration_open: true, registration_code: '',
 };
 
 export const getSettings = cache(async (): Promise<Settings> => {

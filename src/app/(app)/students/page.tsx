@@ -2,9 +2,11 @@ import { requireSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { ActionForm } from '@/components/ActionForm';
 import { Badge, PageHead, Pager } from '@/components/ui';
+import BulkPanel from '@/components/BulkPanel';
 import { saveStudent } from '../../actions/admin';
 
 export const metadata = { title: 'Students' };
+export const dynamic = 'force-dynamic';
 const PER = 40;
 
 export default async function StudentsPage({ searchParams }: { searchParams: { q?: string; class?: string; page?: string } }) {
@@ -35,6 +37,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: { q
           <div><label>Gender</label><select name="gender"><option value="">Not stated</option><option value="male">Male</option><option value="female">Female</option></select></div>
           <div><label>Class</label><select name="class" required><option value="">Choose class</option>{opts}</select></div>
         </ActionForm></div></details>
+      <BulkPanel entity="students" classOptions={classes.map((c: any) => ({ id: c.id, name: `${c.name} (${c.year})` }))} />
       <form className="row card"><div style={{ flex: '1 1 220px' }}><label htmlFor="q">Search name or number</label><input id="q" name="q" defaultValue={q} /></div>
         <div style={{ flex: '1 1 200px' }}><label htmlFor="cl">Class</label><select id="cl" name="class" defaultValue={classId}><option value="">All classes</option>{opts}</select></div>
         <button className="btn" style={{ alignSelf: 'end' }}>Filter</button></form>

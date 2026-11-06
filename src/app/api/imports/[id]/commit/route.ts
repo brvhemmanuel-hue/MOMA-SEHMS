@@ -1,14 +1,19 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { commitChunk } from '@/lib/imports';
+import { one } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const s = await getSession();
-  if (!s || s.role !== 'school_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!s || (s.role !== 'school_admin' && s.role !== 'teacher')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (s.role === 'teacher') {
+    const b = await one<{ entity_type: string }>('select entity_type from import_batches where id = $1 and uploaded_by = $2', [params.id, s.userId]);
+    if (!b || b.entity_type !== 'students') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   const body = await req.json().catch(() => ({}));
   const commitMode = body.commitMode === 'skip_invalid' ? 'skip_invalid' : 'all_or_nothing';
   const createAnyway = Array.isArray(body.createAnyway) ? body.createAnyway.filter((n: any) => Number.isInteger(n)) : [];

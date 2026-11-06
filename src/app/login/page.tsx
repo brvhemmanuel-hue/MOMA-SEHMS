@@ -2,6 +2,8 @@ import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
 import { ActionForm } from '@/components/ActionForm';
+import PasswordInput from '@/components/PasswordInput';
+import Link from 'next/link';
 import { loginAction } from '../actions/auth';
 
 export const metadata = { title: 'Sign in' };
@@ -20,12 +22,13 @@ export default async function LoginPage() {
       <section className="login-panel">
         <Image className="logo" src="/logo.jpg" alt="Mt. Olivet Methodist Academy, Dansoman-Accra. The Truth Stands." width={588} height={279} priority style={{ height: 'auto' }} />
         <h1>Sign in</h1>
-        <p className="muted">Use the account issued by the School Administrator.</p>
+        <p className="muted">Teachers and administrators sign in here.</p>
         <ActionForm action={loginAction} submit="Sign in" resetOnSuccess={false} className="stack" submitClass="btn gold">
           <div><label htmlFor="email">Email or username</label><input id="email" name="email" autoComplete="username" required autoCapitalize="none" /></div>
-          <div><label htmlFor="password">Password</label><input id="password" name="password" type="password" autoComplete="current-password" required /></div>
+          <div><label htmlFor="password">Password</label><PasswordInput id="password" name="password" autoComplete="current-password" /></div>
         </ActionForm>
-        <p className="small muted" style={{ marginTop: '1.5rem' }}>Students do not sign in. Teachers record submissions on their behalf.</p>
+        <p style={{ marginTop: '1.25rem' }}>New teacher? <Link href="/register"><strong>Create your account</strong></Link></p>
+        <p className="small muted">Students do not sign in. Teachers record submissions on their behalf.</p>
       </section>
     </main>
   );

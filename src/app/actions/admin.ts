@@ -5,7 +5,9 @@ import { audit } from '@/lib/audit';
 import { requireSession, revokeSessions } from '@/lib/auth';
 import { clean, isEmailOrUsername, normalisePhone } from '@/lib/validators';
 import { nextRef } from '@/lib/ids';
-import { createExternalAdminAccount, createTeacherAccount, enrollStudent, resetPassword } from '@/lib/accounts';
+import { createExternalAdminAccount, enrollStudent, resetPassword } from '@/lib/accounts';
+import { detectSection, type SectionKey } from '@/lib/levels';
+import { newRegistrationCode } from '@/lib/registration';
 import type { FormState } from '@/components/ActionForm';
 
 const admin = () => requireSession(['school_admin']);
@@ -21,6 +23,16 @@ function problem(e: any): FormState {
   return { error: 'Something went wrong while saving. Nothing was changed. Please try again.' };
 }
 const done = (path: string, ok: string): FormState => { revalidatePath(path); return { ok }; };
+
+/** When a new term becomes current, teachers keep their classes and subjects for the same academic year. */
+async function carryOver(db: { query: (t: string, p?: unknown[]) => Promise<any[]> }, newTermId: string) {
+  await db.query(
+    `insert into teacher_class_subject_assignments (teacher_id, class_id, subject_id, academic_year_id, term_id, status)
+     select a.teacher_id, a.class_id, a.subject_id, a.academic_year_id, $1, 'active'
+       from teacher_class_subject_assignments a join terms nt on nt.id = $1
+      where a.status = 'active' and a.academic_year_id = nt.academic_year_id and a.term_id <> $1
+     on conflict (teacher_id, class_id, subject_id, term_id) do nothing`, [newTermId]);
+}
 
 /* ---------- academic structure ---------- */
 export async function createYear(_: FormState, fd: FormData): Promise<FormState> {
@@ -47,6 +59,7 @@ export async function createTerm(_: FormState, fd: FormData): Promise<FormState>
     await tx(async (db) => {
       if (fd.get('current')) { await db.query('update terms set is_current=false'); await db.query('update academic_years set is_current=(id=$1)', [yearId]); }
       const [t] = await db.query<{ id: string }>('insert into terms (academic_year_id,name,start_date,end_date,is_current) values ($1,$2,$3,$4,$5) returning id', [yearId, name, start, end, !!fd.get('current')]);
+      if (fd.get('current')) await carryOver(db, t.id);
       await audit(s.userId, 'term.create', 'term', t.id, { name }, db);
     });
   } catch (e) { return problem(e); }
@@ -61,6 +74,7 @@ export async function setCurrentTerm(_: FormState, fd: FormData): Promise<FormSt
   await tx(async (db) => {
     await db.query('update terms set is_current = (id=$1)', [termId]);
     await db.query('update academic_years set is_current = (id=$1)', [t.academic_year_id]);
+    await carryOver(db, termId);
     await audit(s.userId, 'term.set_current', 'term', termId, {}, db);
   });
   return done('/setup', `${t.name} is now the current term.`);
@@ -84,15 +98,18 @@ export async function saveClass(_: FormState, fd: FormData): Promise<FormState> 
   const cId = id(fd, 'id'), name = f(fd, 'name'), level = f(fd, 'level') || null, programme = f(fd, 'programme') || null;
   const dept = id(fd, 'department') || null, year = id(fd, 'year'), status = f(fd, 'status') === 'inactive' ? 'inactive' : 'active';
   if (!name) return { error: 'Enter a class name.' };
+  const picked = f(fd, 'section');
+  const section: SectionKey | null = ['lower_primary', 'upper_primary', 'jhs'].includes(picked) ? (picked as SectionKey) : detectSection(name, level);
+  if (!section) return { error: 'Choose the level (Lower Primary, Upper Primary or JHS) for this class.' };
   try {
     if (cId) {
-      await query('update classes set name=$2, level=$3, programme=$4, department_id=$5, status=$6 where id=$1', [cId, name, level, programme, dept, status]);
+      await query('update classes set name=$2, level=$3, programme=$4, department_id=$5, status=$6, section=$7 where id=$1', [cId, name, level, programme, dept, status, section]);
       await audit(s.userId, 'class.update', 'class', cId, { name });
       return done('/classes', 'Class updated.');
     }
     if (!year) return { error: 'Choose an academic year.' };
     const code = await nextRef('class');
-    const [c] = await query<{ id: string }>('insert into classes (class_code,name,level,programme,department_id,academic_year_id,status) values ($1,$2,$3,$4,$5,$6,$7) returning id', [code, name, level, programme, dept, year, status]);
+    const [c] = await query<{ id: string }>('insert into classes (class_code,name,level,section,programme,department_id,academic_year_id,status) values ($1,$2,$3,$4,$5,$6,$7,$8) returning id', [code, name, level, section, programme, dept, year, status]);
     await audit(s.userId, 'class.create', 'class', c.id, { name, code });
     return done('/classes', `Class ${name} created with code ${code}.`);
   } catch (e) { return problem(e); }
@@ -116,24 +133,6 @@ export async function saveSubject(_: FormState, fd: FormData): Promise<FormState
 }
 
 /* ---------- accounts ---------- */
-export async function createTeacher(_: FormState, fd: FormData): Promise<FormState> {
-  const s = await admin();
-  const first = f(fd, 'first'), last = f(fd, 'last'), email = f(fd, 'email'), dept = id(fd, 'department') || null;
-  const phone = normalisePhone(fd.get('phone'));
-  if (!first || !last) return { error: 'Enter the first and last name.' };
-  if (!isEmailOrUsername(email)) return { error: 'Enter a valid email address or a username (3 to 40 letters, numbers, dot, dash or underscore).' };
-  if (phone === null) return { error: 'The phone number does not look right.' };
-  try {
-    const r = await tx(async (db) => {
-      const a = await createTeacherAccount(db, { email, firstName: first, lastName: last, phone, departmentId: dept });
-      await audit(s.userId, 'teacher.create', 'teacher', a.teacherId, { teacherNo: a.teacherNo }, db);
-      return a;
-    });
-    revalidatePath('/teachers');
-    return { ok: `Teacher ${first} ${last} created with number ${r.teacherNo}.`, credential: { name: `${first} ${last}`, username: email, password: r.tempPassword, role: 'Teacher' } };
-  } catch (e) { return problem(e); }
-}
-
 export async function updateTeacher(_: FormState, fd: FormData): Promise<FormState> {
   const s = await admin();
   const tId = id(fd, 'id'), first = f(fd, 'first'), last = f(fd, 'last'), dept = id(fd, 'department') || null, phone = normalisePhone(fd.get('phone'));
@@ -255,4 +254,21 @@ export async function saveSettings(_: FormState, fd: FormData): Promise<FormStat
     await audit(s.userId, 'settings.update', 'settings', undefined, {}, db);
   });
   return done('/settings', 'Settings saved.');
+}
+
+/* ---------- teacher sign-up controls ---------- */
+export async function setRegistrationOpen(_: FormState, fd: FormData): Promise<FormState> {
+  const s = await admin();
+  const open = f(fd, 'open') === '1';
+  await query(`insert into system_settings (key,value) values ('registration_open',$1) on conflict (key) do update set value=$1, updated_at=now()`, [JSON.stringify(open)]);
+  await audit(s.userId, open ? 'registration.open' : 'registration.close', 'settings');
+  return done('/teachers', open ? 'Teacher sign-up is open.' : 'Teacher sign-up is closed. Existing teachers are not affected.');
+}
+
+export async function regenerateRegistrationCode(_: FormState, _fd: FormData): Promise<FormState> {
+  const s = await admin();
+  const code = newRegistrationCode();
+  await query(`insert into system_settings (key,value) values ('registration_code',$1) on conflict (key) do update set value=$1, updated_at=now()`, [JSON.stringify(code)]);
+  await audit(s.userId, 'registration.code_changed', 'settings');
+  return done('/teachers', `New access code: ${code}`);
 }

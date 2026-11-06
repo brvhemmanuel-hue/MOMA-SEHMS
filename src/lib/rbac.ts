@@ -66,3 +66,13 @@ export function assignmentStatus(
 export const STATUS_LABEL: Record<AssignmentStatus, string> = {
   scheduled: 'Scheduled', in_progress: 'In progress', due_soon: 'Due soon', overdue: 'Overdue', closed: 'Closed',
 };
+
+/** Distinct classes a teacher currently handles (same current-term rule as teacherPairs). */
+export async function teacherClasses(teacherId: string) {
+  return query<{ id: string; name: string; section: string | null; year_name: string }>(
+    `select distinct c.id, c.name, c.section, y.name as year_name
+       from teacher_class_subject_assignments a join classes c on c.id = a.class_id join terms t on t.id = a.term_id join academic_years y on y.id = c.academic_year_id
+      where a.teacher_id = $1 and a.status = 'active' and c.status = 'active'
+        and (t.is_current or not exists (select 1 from terms where is_current))
+      order by c.name`, [teacherId]);
+}

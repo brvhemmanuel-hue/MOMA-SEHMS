@@ -1,4 +1,7 @@
-import { Pool, type QueryResultRow } from 'pg';
+import { Pool, types, type QueryResultRow } from 'pg';
+
+// Return DATE columns as plain 'YYYY-MM-DD' strings (the driver default is a Date at local midnight, which breaks date display).
+types.setTypeParser(1082, (v: string) => v);
 
 declare global {
   // eslint-disable-next-line no-var

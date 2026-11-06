@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const s = await getSession();
-  if (!s || s.role !== 'school_admin' || !/^[0-9a-f-]{36}$/i.test(params.id)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!s || (s.role !== 'school_admin' && s.role !== 'teacher') || !/^[0-9a-f-]{36}$/i.test(params.id)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const b = await one<any>('select entity_type from import_batches where id=$1 and uploaded_by=$2', [params.id, s.userId]);
   if (!b) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const headers = ENTITIES[b.entity_type as EntityKey].headers;

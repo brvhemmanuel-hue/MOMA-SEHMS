@@ -1,6 +1,6 @@
 import { requireSession } from '@/lib/auth';
 import { query } from '@/lib/db';
-import { fmtDate } from '@/lib/time';
+import { dateOnly, fmtDate } from '@/lib/time';
 import { getSettings } from '@/lib/settings';
 import { ActionForm } from '@/components/ActionForm';
 import { Badge, PageHead } from '@/components/ui';
@@ -23,7 +23,7 @@ export default async function SetupPage() {
         <section className="card">
           <h2>Academic years</h2>
           <div className="tablewrap"><table><thead><tr><th>Year</th><th>Dates</th><th></th></tr></thead><tbody>
-            {years.map((y: any) => <tr key={y.id}><td>{y.name}</td><td className="small">{fmtDate(y.start_date + 'T12:00:00Z', 'UTC')} to {fmtDate(y.end_date + 'T12:00:00Z', 'UTC')}</td><td>{y.is_current && <Badge tone="gold">Current</Badge>}</td></tr>)}
+            {years.map((y: any) => <tr key={y.id}><td>{y.name}</td><td className="small">{fmtDate(dateOnly(y.start_date) + 'T12:00:00Z', 'UTC')} to {fmtDate(dateOnly(y.end_date) + 'T12:00:00Z', 'UTC')}</td><td>{y.is_current && <Badge tone="gold">Current</Badge>}</td></tr>)}
             {!years.length && <tr><td colSpan={3} className="muted">No academic year yet. Create one below to begin.</td></tr>}
           </tbody></table></div>
           <details className="panel" style={{ marginTop: '1rem' }} open={!years.length}><summary>Add academic year</summary><div>
@@ -37,7 +37,7 @@ export default async function SetupPage() {
         <section className="card">
           <h2>Terms</h2>
           <div className="tablewrap"><table><thead><tr><th>Term</th><th>Year</th><th>Dates</th><th></th></tr></thead><tbody>
-            {terms.map((t: any) => <tr key={t.id}><td>{t.name}</td><td>{t.year_name}</td><td className="small">{fmtDate(t.start_date + 'T12:00:00Z', 'UTC')} to {fmtDate(t.end_date + 'T12:00:00Z', 'UTC')}</td>
+            {terms.map((t: any) => <tr key={t.id}><td>{t.name}</td><td>{t.year_name}</td><td className="small">{fmtDate(dateOnly(t.start_date) + 'T12:00:00Z', 'UTC')} to {fmtDate(dateOnly(t.end_date) + 'T12:00:00Z', 'UTC')}</td>
               <td>{t.is_current ? <Badge tone="gold">Current</Badge> : <ActionForm action={setCurrentTerm} submit="Make current" submitClass="btn ghost sm" resetOnSuccess={false}><input type="hidden" name="term" value={t.id} /></ActionForm>}</td></tr>)}
             {!terms.length && <tr><td colSpan={4} className="muted">No terms yet.</td></tr>}
           </tbody></table></div>

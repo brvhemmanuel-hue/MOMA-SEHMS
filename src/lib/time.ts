@@ -65,3 +65,10 @@ export function startOfWeek(iso: string): string {
   const dow = (d.getUTCDay() + 6) % 7; // Monday = 0
   return addDays(iso, -dow);
 }
+
+/** Accepts a 'YYYY-MM-DD' string or a Date and returns 'YYYY-MM-DD'. */
+export function dateOnly(v: Date | string | null | undefined): string {
+  if (!v) return '';
+  if (typeof v === 'string') return v.slice(0, 10);
+  return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+}

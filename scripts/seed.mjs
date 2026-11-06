@@ -1,4 +1,4 @@
-// DEMONSTRATION DATA ONLY. Do not run against a production database.
+// DEMONSTRATION DATA ONLY. Do not run against a production database. Run `npm run db:migrate` first.
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 
@@ -25,9 +25,10 @@ await q(`insert into terms (academic_year_id,name,start_date,end_date) values ($
 for (const d of ['Languages', 'Mathematics and Science', 'Computing and Technology']) await q('insert into departments (name) values ($1) on conflict do nothing', [d]);
 
 const classes = {};
-for (const n of ['JHS 1A', 'JHS 1B', 'JHS 2A']) {
+const sectionOf = (n) => { const d = Number((/\d+/.exec(n) || [0])[0]); return d <= 3 ? 'lower_primary' : d <= 6 ? 'upper_primary' : 'jhs'; };
+for (const n of ['BASIC 4 A', 'BASIC 7 A', 'BASIC 8 A']) {
   const ex = await q('select id from classes where name=$1 and academic_year_id=$2', [n, yr.id]);
-  classes[n] = ex[0]?.id ?? (await q('insert into classes (class_code,name,level,academic_year_id) values ($1,$2,$3,$4) returning id', [await ctr('class', 'CLS-'), n, n.slice(0, 5), yr.id]))[0].id;
+  classes[n] = ex[0]?.id ?? (await q('insert into classes (class_code,name,level,section,academic_year_id) values ($1,$2,$3,$4,$5) returning id', [await ctr('class', 'CLS-'), n, n.slice(0, 7), sectionOf(n), yr.id]))[0].id;
 }
 const subjects = {};
 for (const n of ['Mathematics', 'English Language', 'Integrated Science', 'Computing']) {
@@ -42,7 +43,7 @@ for (const [f, l, e] of teachers) {
   const [u] = await q(`insert into users (email,full_name,password_hash,role,must_change_password) values ($1,$2,$3,'teacher',false) returning id`, [e, `${f} ${l}`, hash]);
   tid.push((await q('insert into teacher_profiles (user_id,teacher_no,first_name,last_name) values ($1,$2,$3,$4) returning id', [u.id, await ctr('teacher', 'T-'), f, l]))[0].id);
 }
-const plan = [[0, 'JHS 1A', 'Mathematics'], [0, 'JHS 1B', 'Mathematics'], [1, 'JHS 1A', 'English Language'], [1, 'JHS 2A', 'English Language'], [2, 'JHS 1A', 'Integrated Science'], [2, 'JHS 1B', 'Computing'], [2, 'JHS 2A', 'Computing']];
+const plan = [[0, 'BASIC 4 A', 'Mathematics'], [0, 'BASIC 7 A', 'Mathematics'], [1, 'BASIC 4 A', 'English Language'], [1, 'BASIC 8 A', 'English Language'], [2, 'BASIC 4 A', 'Integrated Science'], [2, 'BASIC 7 A', 'Computing'], [2, 'BASIC 8 A', 'Computing']];
 for (const [ti, cn, sn] of plan) await q(`insert into teacher_class_subject_assignments (teacher_id,class_id,subject_id,academic_year_id,term_id) values ($1,$2,$3,$4,$5) on conflict do nothing`, [tid[ti], classes[cn], subjects[sn], yr.id, t1.id]);
 
 const first = ['Kofi', 'Akosua', 'Yaw', 'Abena', 'Kwesi', 'Adwoa', 'Nana', 'Efua', 'Kojo', 'Maame', 'Fiifi', 'Ama'];
@@ -80,13 +81,13 @@ if (!have) {
       n++;
     }
   };
-  await mk(0, 'JHS 1A', 'Mathematics', 'Algebra Exercise 1', 'class_exercise', 20, -12, 0.9);
-  await mk(0, 'JHS 1A', 'Mathematics', 'Fractions Homework', 'homework', 8, -2, 0.7);
-  await mk(0, 'JHS 1B', 'Mathematics', 'Ratios Homework', 'homework', 3, 2, 0.5);
-  await mk(1, 'JHS 1A', 'English Language', 'Comprehension Passage 3', 'class_exercise', 6, -1, 0.8);
-  await mk(1, 'JHS 2A', 'English Language', 'Letter Writing Homework', 'homework', 2, 1, 0.3);
-  await mk(2, 'JHS 1A', 'Integrated Science', 'States of Matter Exercise', 'class_exercise', 10, -5, 1);
-  await mk(2, 'JHS 1B', 'Computing', 'Input and Output Devices', 'homework', 1, 4, 0.1);
+  await mk(0, 'BASIC 4 A', 'Mathematics', 'Algebra Exercise 1', 'class_exercise', 20, -12, 0.9);
+  await mk(0, 'BASIC 4 A', 'Mathematics', 'Fractions Homework', 'homework', 8, -2, 0.7);
+  await mk(0, 'BASIC 7 A', 'Mathematics', 'Ratios Homework', 'homework', 3, 2, 0.5);
+  await mk(1, 'BASIC 4 A', 'English Language', 'Comprehension Passage 3', 'class_exercise', 6, -1, 0.8);
+  await mk(1, 'BASIC 8 A', 'English Language', 'Letter Writing Homework', 'homework', 2, 1, 0.3);
+  await mk(2, 'BASIC 4 A', 'Integrated Science', 'States of Matter Exercise', 'class_exercise', 10, -5, 1);
+  await mk(2, 'BASIC 7 A', 'Computing', 'Input and Output Devices', 'homework', 1, 4, 0.1);
 }
 await c.query('commit');
 await c.end();

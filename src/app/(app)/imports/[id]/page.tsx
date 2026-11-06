@@ -9,17 +9,19 @@ import { Badge, PageHead, Stat } from '@/components/ui';
 export const metadata = { title: 'Import preview' };
 
 export default async function ImportPreview({ params, searchParams }: { params: { id: string }; searchParams: { ignored?: string } }) {
-  const s = await requireSession(['school_admin']);
+  const s = await requireSession(['school_admin', 'teacher']);
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) notFound();
   const b = await one<any>('select * from import_batches where id=$1 and uploaded_by=$2', [params.id, s.userId]);
   if (!b) notFound();
+  if (s.role === 'teacher' && b.entity_type !== 'students') notFound();
+  const back = s.role === 'teacher' ? '/my-students' : '/imports';
   const def = ENTITIES[b.entity_type as EntityKey];
   const rows = await query<any>(`select row_number, outcome, action, messages, payload from import_rows where batch_id=$1 and outcome <> 'ready' order by row_number limit 300`, [params.id]);
   const dups = b.entity_type === 'students' ? rows.filter((r: any) => r.outcome === 'warning' && r.action === 'skip' && /Possible duplicate/.test((r.messages as string[]).join(' '))).map((r: any) => ({ row: r.row_number, text: `${r.payload?.raw?.first_name ?? ''} ${r.payload?.raw?.last_name ?? ''} in ${r.payload?.raw?.class_name ?? ''}` })) : [];
   const ignored = (searchParams.ignored || '').split(',').filter(Boolean);
   return (
     <div className="stack">
-      <PageHead title={`Preview: ${def.label}`} sub={`${b.file_name} | ${b.mode === 'create_only' ? 'Create only' : 'Create and update'}`}><Link className="btn ghost" href="/imports">Import Centre</Link></PageHead>
+      <PageHead title={`Preview: ${def.label}`} sub={`${b.file_name} | ${b.mode === 'create_only' ? 'Create only' : 'Create and update'}`}><Link className="btn ghost" href={back}>{s.role === 'teacher' ? 'My students' : 'Import Centre'}</Link></PageHead>
       {ignored.length > 0 && <div className="alert info"><strong>Columns ignored:</strong> {ignored.join(', ')}. IDs and passwords are never imported or stored. The system generates its own IDs.</div>}
       <div className="grid cols-4">
         <Stat label="Rows in file" value={b.total_rows} /><Stat label="Ready to import" value={b.ready_rows} tone="ok" hint="IDs are generated when you confirm" />

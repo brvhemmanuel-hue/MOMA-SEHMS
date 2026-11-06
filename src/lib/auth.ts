@@ -67,7 +67,9 @@ export const getSession = cache(async (): Promise<Session | null> => {
       userId: row.id, email: row.email, fullName: row.full_name, role: row.role,
       mustChangePassword: row.must_change_password, teacherId: row.teacher_id, teacherNo: row.teacher_no,
     };
-  } catch {
+  } catch (e: any) {
+    // Expired or tampered tokens are normal. Anything else (for example a database problem) must be visible in the logs.
+    if (!String(e?.code ?? '').startsWith('ERR_JW')) console.error('getSession failed:', e);
     return null;
   }
 });

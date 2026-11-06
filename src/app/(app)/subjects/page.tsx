@@ -2,9 +2,11 @@ import { requireSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { ActionForm } from '@/components/ActionForm';
 import { Badge, PageHead } from '@/components/ui';
+import BulkPanel from '@/components/BulkPanel';
 import { saveSubject } from '../../actions/admin';
 
 export const metadata = { title: 'Subjects' };
+export const dynamic = 'force-dynamic';
 
 export default async function SubjectsPage() {
   await requireSession(['school_admin']);
@@ -20,6 +22,7 @@ export default async function SubjectsPage() {
           <div><label htmlFor="s-name">Subject name</label><input id="s-name" name="name" placeholder="Mathematics" required /></div>
           <div><label htmlFor="s-dept">Department (optional)</label><select id="s-dept" name="department"><option value="">None</option>{depts.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
         </ActionForm></div></details>
+      <BulkPanel entity="subjects" />
       <div className="card flat tablewrap"><table>
         <thead><tr><th>Code</th><th>Subject</th><th>Department</th><th>Status</th><th></th></tr></thead>
         <tbody>{subjects.map((s: any) => (

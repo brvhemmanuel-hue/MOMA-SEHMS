@@ -16,7 +16,7 @@ export default async function TeacherAssignmentsPage({ searchParams }: { searchP
   ]);
   const filter = /^[0-9a-f-]{36}$/i.test(searchParams.teacher || '') ? searchParams.teacher! : '';
   const rows = await query<any>(
-    `select a.id, a.status, tp.first_name||' '||tp.last_name teacher, c.name class_name, s.name subject_name, t.name term, y.name year
+    `select a.id, a.status, tp.first_name||' '||tp.last_name teacher, c.name class_name, s.name subject_name, t.name as term_name, y.name as year_name
        from teacher_class_subject_assignments a join teacher_profiles tp on tp.id=a.teacher_id join classes c on c.id=a.class_id join subjects s on s.id=a.subject_id
        join terms t on t.id=a.term_id join academic_years y on y.id=a.academic_year_id ${filter ? 'where a.teacher_id=$1' : ''}
       order by y.name desc, t.name, tp.last_name, c.name, s.name`, filter ? [filter] : []);
@@ -33,7 +33,7 @@ export default async function TeacherAssignmentsPage({ searchParams }: { searchP
       <form className="row"><label htmlFor="tf" className="sr-only">Teacher</label><select id="tf" name="teacher" defaultValue={filter} style={{ width: 'auto' }}><option value="">All teachers</option>{teachers.map((t: any) => <option key={t.id} value={t.id}>{t.n}</option>)}</select><button className="btn ghost sm">Filter</button></form>
       <div className="card flat tablewrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Subject</th><th>Term</th><th>Status</th><th></th></tr></thead>
         <tbody>{rows.map((r: any) => (
-          <tr key={r.id}><td>{r.teacher}</td><td>{r.class_name}</td><td>{r.subject_name}</td><td>{r.term} ({r.year})</td><td><Badge tone={r.status === 'active' ? 'ok' : ''}>{r.status}</Badge></td>
+          <tr key={r.id}><td>{r.teacher}</td><td>{r.class_name}</td><td>{r.subject_name}</td><td>{r.term_name} ({r.year_name})</td><td><Badge tone={r.status === 'active' ? 'ok' : ''}>{r.status}</Badge></td>
             <td><ActionForm action={toggleTeacherAssignment} submit={r.status === 'active' ? 'Deactivate' : 'Reactivate'} submitClass="btn ghost sm" resetOnSuccess={false}>
               <input type="hidden" name="id" value={r.id} /><input type="hidden" name="status" value={r.status === 'active' ? 'inactive' : 'active'} /></ActionForm></td></tr>))}
           {!rows.length && <tr><td colSpan={6} className="empty">No assignments yet.</td></tr>}</tbody></table></div>

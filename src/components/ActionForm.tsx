@@ -25,7 +25,7 @@ export function CredentialBox({ c }: { c: Credential }) {
 export function ActionForm({
   action, children, submit = 'Save', className, resetOnSuccess = true, submitClass = 'btn', hideSubmit = false,
 }: {
-  action: (prev: FormState, fd: FormData) => Promise<FormState>; children: React.ReactNode; submit?: string; className?: string;
+  action: (prev: FormState, fd: FormData) => Promise<FormState>; children?: React.ReactNode; submit?: string; className?: string;
   resetOnSuccess?: boolean; submitClass?: string; hideSubmit?: boolean;
 }) {
   const [state, formAction] = useFormState(action, {} as FormState);

@@ -4,7 +4,7 @@ import { requireSession } from '@/lib/auth';
 import { one, query } from '@/lib/db';
 import { ActionForm } from '@/components/ActionForm';
 import { Badge, PageHead } from '@/components/ui';
-import { resetUserPassword, setUserStatus, updateTeacher } from '../../../actions/admin';
+import { resetUserPassword, setUserStatus, toggleTeacherAssignment, updateTeacher } from '../../../actions/admin';
 
 export const metadata = { title: 'Manage teacher' };
 
@@ -15,7 +15,7 @@ export default async function TeacherPage({ params }: { params: { id: string } }
   if (!t) notFound();
   const [depts, loads] = await Promise.all([
     query<any>("select id,name from departments where status='active' order by name"),
-    query<any>(`select a.status, c.name class_name, s.name subject_name, tm.name term_name, y.name year_name
+    query<any>(`select a.id, a.status, c.name class_name, s.name subject_name, tm.name term_name, y.name year_name
                   from teacher_class_subject_assignments a join classes c on c.id=a.class_id join subjects s on s.id=a.subject_id join terms tm on tm.id=a.term_id join academic_years y on y.id=a.academic_year_id
                  where a.teacher_id=$1 order by y.name desc, tm.name, c.name, s.name`, [params.id]),
   ]);
@@ -39,9 +39,9 @@ export default async function TeacherPage({ params }: { params: { id: string } }
           </ActionForm></section>
       </div>
       <section className="card flat"><div style={{ padding: '1rem 1rem 0' }}><h2>Classes and subjects handled</h2></div>
-        <div className="tablewrap"><table><thead><tr><th>Year</th><th>Term</th><th>Class</th><th>Subject</th><th>Status</th></tr></thead>
-          <tbody>{loads.map((l: any, i: number) => <tr key={i}><td>{l.year_name}</td><td>{l.term_name}</td><td>{l.class_name}</td><td>{l.subject_name}</td><td><Badge tone={l.status === 'active' ? 'ok' : ''}>{l.status}</Badge></td></tr>)}
-            {!loads.length && <tr><td colSpan={5} className="empty">Nothing assigned yet. Use Teacher assignments.</td></tr>}</tbody></table></div></section>
+        <div className="tablewrap"><table><thead><tr><th>Year</th><th>Term</th><th>Class</th><th>Subject</th><th>Status</th><th></th></tr></thead>
+          <tbody>{loads.map((l: any, i: number) => <tr key={i}><td>{l.year_name}</td><td>{l.term_name}</td><td>{l.class_name}</td><td>{l.subject_name}</td><td><Badge tone={l.status === 'active' ? 'ok' : ''}>{l.status}</Badge></td><td><ActionForm action={toggleTeacherAssignment} submit={l.status === 'active' ? 'Deactivate' : 'Reactivate'} submitClass="btn ghost sm" resetOnSuccess={false}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="status" value={l.status === 'active' ? 'inactive' : 'active'} /></ActionForm></td></tr>)}
+            {!loads.length && <tr><td colSpan={6} className="empty">This teacher has not chosen any classes yet.</td></tr>}</tbody></table></div></section>
     </div>
   );
 }
