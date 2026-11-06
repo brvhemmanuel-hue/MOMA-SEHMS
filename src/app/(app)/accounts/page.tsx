@@ -4,6 +4,7 @@ import { fmtDateTime } from '@/lib/time';
 import { getSettings } from '@/lib/settings';
 import { ActionForm } from '@/components/ActionForm';
 import { Badge, PageHead } from '@/components/ui';
+import DeleteButton from '@/components/DeleteButton';
 import { createExternalAdmin, resetUserPassword, setUserStatus } from '../../actions/admin';
 
 export const metadata = { title: 'External Administrator' };
@@ -25,6 +26,7 @@ export default async function AccountsPage() {
           <tr key={u.id}><td>{u.full_name}</td><td className="small">{u.email}</td><td className="small">{u.last_login_at ? fmtDateTime(u.last_login_at, tz) : 'Never'}</td><td><Badge tone={u.status === 'active' ? 'ok' : ''}>{u.status}</Badge></td>
             <td><div className="row">
               <ActionForm action={resetUserPassword} submit="Reset password" submitClass="btn ghost sm" resetOnSuccess={false}><input type="hidden" name="user" value={u.id} /></ActionForm>
+              <DeleteButton kind="external_admin" id={u.id} name={u.full_name} />
               <ActionForm action={setUserStatus} submit={u.status === 'active' ? 'Deactivate' : 'Activate'} submitClass="btn ghost sm" resetOnSuccess={false}><input type="hidden" name="user" value={u.id} /><input type="hidden" name="status" value={u.status === 'active' ? 'inactive' : 'active'} /></ActionForm>
             </div></td></tr>))}
           {!rows.length && <tr><td colSpan={5} className="empty">No External Administrator yet.</td></tr>}</tbody></table></div>

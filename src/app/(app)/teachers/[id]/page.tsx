@@ -4,6 +4,7 @@ import { requireSession } from '@/lib/auth';
 import { one, query } from '@/lib/db';
 import { ActionForm } from '@/components/ActionForm';
 import { Badge, PageHead } from '@/components/ui';
+import DeleteButton from '@/components/DeleteButton';
 import { resetUserPassword, setUserStatus, toggleTeacherAssignment, updateTeacher } from '../../../actions/admin';
 
 export const metadata = { title: 'Manage teacher' };
@@ -32,11 +33,15 @@ export default async function TeacherPage({ params }: { params: { id: string } }
             <div><label>Department</label><select name="department" defaultValue={t.department_id ?? ''}><option value="">None</option>{depts.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
           </ActionForm></section>
         <section className="card stack"><h2>Account</h2>
-          <ActionForm action={resetUserPassword} submit="Reset password" submitClass="btn gold" resetOnSuccess={false}><input type="hidden" name="user" value={t.user_id} /></ActionForm>
-          <p className="small muted">Issues a new temporary password and signs the teacher out everywhere. They must change it at next sign-in.</p>
+          <ActionForm action={resetUserPassword} submit="Reset password" submitClass="btn gold" resetOnSuccess={false} className="stack">
+            <input type="hidden" name="user" value={t.user_id} />
+            <div><label htmlFor="temp">New temporary password (optional)</label><input id="temp" name="temp" autoComplete="off" placeholder="Leave blank to generate one" /></div>
+          </ActionForm>
+          <p className="small muted">For a teacher who forgot their password. Signs them out everywhere. They must change it at next sign-in.</p>
           <ActionForm action={setUserStatus} submit={t.status === 'active' ? 'Deactivate account' : 'Activate account'} submitClass={t.status === 'active' ? 'btn danger' : 'btn'} resetOnSuccess={false}>
             <input type="hidden" name="user" value={t.user_id} /><input type="hidden" name="status" value={t.status === 'active' ? 'inactive' : 'active'} />
-          </ActionForm></section>
+          </ActionForm>
+          <div><DeleteButton kind="teacher" id={t.id} name={`${t.first_name} ${t.last_name}`} redirectTo="/teachers" /></div></section>
       </div>
       <section className="card flat"><div style={{ padding: '1rem 1rem 0' }}><h2>Classes and subjects handled</h2></div>
         <div className="tablewrap"><table><thead><tr><th>Year</th><th>Term</th><th>Class</th><th>Subject</th><th>Status</th><th></th></tr></thead>

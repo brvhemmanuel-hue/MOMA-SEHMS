@@ -1,6 +1,8 @@
 import { requireSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { ActionForm } from '@/components/ActionForm';
+import Modal from '@/components/Modal';
+import DeleteButton from '@/components/DeleteButton';
 import { Badge, PageHead } from '@/components/ui';
 import BulkPanel from '@/components/BulkPanel';
 import { SECTIONS, sectionLabel } from '@/lib/levels';
@@ -42,15 +44,14 @@ export default async function ClassesPage({ searchParams }: { searchParams: { ye
           <tbody>{classes.map((c: any) => (
             <tr key={c.id}><td>{c.class_code}</td><td><strong>{c.name}</strong></td><td>{c.section ? <Badge tone="info">{sectionLabel(c.section)}</Badge> : <Badge tone="bad">Not set</Badge>}</td><td className="num">{c.students}</td>
               <td><Badge tone={c.status === 'active' ? 'ok' : ''}>{c.status}</Badge></td>
-              <td><details className="inline"><summary className="btn ghost sm">Edit</summary>
-                <div className="card" style={{ position: 'absolute', zIndex: 4, minWidth: 300, marginTop: 4 }}>
+              <td><div className="row-actions"><Modal trigger="Edit" title={`Edit ${c.name}`}>
                   <ActionForm action={saveClass} submit="Save" resetOnSuccess={false} className="stack">
                     <input type="hidden" name="id" value={c.id} /><input type="hidden" name="year" value={yearId} />
                     <div><label>Name</label><input name="name" defaultValue={c.name} required /></div>
                     <div><label>Level</label><SectionSelect value={c.section} /></div>
                     <div><label>Department</label><select name="department" defaultValue={c.department_id ?? ''}><option value="">None</option>{depts.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
                     <div><label>Status</label><select name="status" defaultValue={c.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
-                  </ActionForm></div></details></td></tr>))}
+                  </ActionForm></Modal><DeleteButton kind="class" id={c.id} name={c.name} /></div></td></tr>))}
             {!classes.length && <tr><td colSpan={6} className="empty">No classes in this year yet.</td></tr>}
           </tbody></table></div></>}
     </div>

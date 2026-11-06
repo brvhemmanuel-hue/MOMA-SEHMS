@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { one, query, tx } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { requireSession, revokeSessions } from '@/lib/auth';
-import { clean, isEmailOrUsername, normalisePhone } from '@/lib/validators';
+import { clean, isEmailOrUsername, normalisePhone, passwordProblem } from '@/lib/validators';
 import { nextRef } from '@/lib/ids';
 import { createExternalAdminAccount, enrollStudent, resetPassword } from '@/lib/accounts';
 import { detectSection, type SectionKey } from '@/lib/levels';
@@ -64,6 +64,26 @@ export async function createTerm(_: FormState, fd: FormData): Promise<FormState>
     });
   } catch (e) { return problem(e); }
   return done('/setup', `${name} created.`);
+}
+
+export async function updateYear(_: FormState, fd: FormData): Promise<FormState> {
+  const s = await admin();
+  const yId = id(fd, 'id'), name = f(fd, 'name'), start = date(fd, 'start'), end = date(fd, 'end');
+  if (!yId || !name || !start || !end) return { error: 'Enter a name, start date and end date.' };
+  if (end < start) return { error: 'The end date must be on or after the start date.' };
+  try { await query('update academic_years set name=$2, start_date=$3, end_date=$4 where id=$1', [yId, name, start, end]); await audit(s.userId, 'year.update', 'academic_year', yId, { name }); }
+  catch (e) { return problem(e); }
+  return done('/setup', 'Academic year updated.');
+}
+
+export async function updateTerm(_: FormState, fd: FormData): Promise<FormState> {
+  const s = await admin();
+  const tId = id(fd, 'id'), name = f(fd, 'name'), start = date(fd, 'start'), end = date(fd, 'end');
+  if (!tId || !name || !start || !end) return { error: 'Enter a name, start date and end date.' };
+  if (end < start) return { error: 'The end date must be on or after the start date.' };
+  try { await query('update terms set name=$2, start_date=$3, end_date=$4 where id=$1', [tId, name, start, end]); await audit(s.userId, 'term.update', 'term', tId, { name }); }
+  catch (e) { return problem(e); }
+  return done('/setup', 'Term updated.');
 }
 
 export async function setCurrentTerm(_: FormState, fd: FormData): Promise<FormState> {
@@ -166,7 +186,9 @@ export async function resetUserPassword(_: FormState, fd: FormData): Promise<For
   const u = await one<{ email: string; full_name: string; role: string }>('select email, full_name, role from users where id=$1', [uId]);
   if (!u) return { error: 'User not found.' };
   if (uId === s.userId) return { error: 'Change your own password from the Password page.' };
-  const temp = await tx(async (db) => { const t = await resetPassword(db, uId); await audit(s.userId, 'user.password_reset', 'user', uId, {}, db); return t; });
+  const chosen = String(fd.get('temp') ?? '').trim();
+  if (chosen) { const bad = passwordProblem(chosen); if (bad) return { error: bad }; }
+  const temp = await tx(async (db) => { const t = await resetPassword(db, uId, chosen || undefined); await audit(s.userId, 'user.password_reset', 'user', uId, { chosen: !!chosen }, db); return t; });
   return { ok: 'Password reset. The user must change it at next login.', credential: { name: u.full_name, username: u.email, password: temp, role: u.role === 'teacher' ? 'Teacher' : 'External Administrator' } };
 }
 

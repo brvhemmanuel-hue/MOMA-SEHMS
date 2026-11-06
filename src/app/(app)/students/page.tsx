@@ -1,6 +1,8 @@
 import { requireSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { ActionForm } from '@/components/ActionForm';
+import Modal from '@/components/Modal';
+import DeleteButton from '@/components/DeleteButton';
 import { Badge, PageHead, Pager } from '@/components/ui';
 import BulkPanel from '@/components/BulkPanel';
 import { saveStudent } from '../../actions/admin';
@@ -46,8 +48,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: { q
         <tbody>{rows.map((s: any) => (
           <tr key={s.id}><td>{s.student_no}</td><td><strong>{s.last_name}, {s.first_name}</strong> {s.other_names}</td><td>{s.gender ?? ''}</td><td>{s.class_name ?? 'No class'}</td>
             <td><Badge tone={s.status === 'active' ? 'ok' : ''}>{s.status}</Badge></td>
-            <td><details className="inline"><summary className="btn ghost sm">Edit</summary>
-              <div className="card" style={{ position: 'absolute', right: 16, zIndex: 4, minWidth: 300, marginTop: 4 }}>
+            <td><div className="row-actions"><Modal trigger="Edit" title={`Edit ${`${s.first_name} ${s.last_name}`}`}>
                 <ActionForm action={saveStudent} submit="Save" resetOnSuccess={false} className="stack">
                   <input type="hidden" name="id" value={s.id} />
                   <div><label>First name</label><input name="first" defaultValue={s.first_name} required /></div>
@@ -56,7 +57,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: { q
                   <div><label>Gender</label><select name="gender" defaultValue={s.gender ?? ''}><option value="">Not stated</option><option value="male">Male</option><option value="female">Female</option></select></div>
                   <div><label>Class</label><select name="class" defaultValue={s.class_id ?? ''} required>{opts}</select><span className="small muted">Changing class keeps older assignments on their original register.</span></div>
                   <div><label>Status</label><select name="status" defaultValue={s.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
-                </ActionForm></div></details></td></tr>))}
+                </ActionForm></Modal><DeleteButton kind="student" id={s.id} name={`${s.first_name} ${s.last_name}`} /></div></td></tr>))}
           {!rows.length && <tr><td colSpan={6} className="empty">No students match.</td></tr>}</tbody></table></div>
         <Pager base="/students" page={page} pages={pages} params={{ q, class: classId }} /></div>
     </div>

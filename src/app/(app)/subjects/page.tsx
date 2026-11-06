@@ -1,6 +1,8 @@
 import { requireSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { ActionForm } from '@/components/ActionForm';
+import Modal from '@/components/Modal';
+import DeleteButton from '@/components/DeleteButton';
 import { Badge, PageHead } from '@/components/ui';
 import BulkPanel from '@/components/BulkPanel';
 import { saveSubject } from '../../actions/admin';
@@ -27,14 +29,13 @@ export default async function SubjectsPage() {
         <thead><tr><th>Code</th><th>Subject</th><th>Department</th><th>Status</th><th></th></tr></thead>
         <tbody>{subjects.map((s: any) => (
           <tr key={s.id}><td>{s.subject_code}</td><td><strong>{s.name}</strong></td><td>{s.dept}</td><td><Badge tone={s.status === 'active' ? 'ok' : ''}>{s.status}</Badge></td>
-            <td><details className="inline"><summary className="btn ghost sm">Edit</summary>
-              <div className="card" style={{ position: 'absolute', zIndex: 4, minWidth: 280, marginTop: 4 }}>
+            <td><div className="row-actions"><Modal trigger="Edit" title={`Edit ${s.name}`}>
                 <ActionForm action={saveSubject} submit="Save" resetOnSuccess={false} className="stack">
                   <input type="hidden" name="id" value={s.id} />
                   <div><label>Name</label><input name="name" defaultValue={s.name} required /></div>
                   <div><label>Department</label><select name="department" defaultValue={s.department_id ?? ''}><option value="">None</option>{depts.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
                   <div><label>Status</label><select name="status" defaultValue={s.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
-                </ActionForm></div></details></td></tr>))}
+                </ActionForm></Modal><DeleteButton kind="subject" id={s.id} name={s.name} /></div></td></tr>))}
           {!subjects.length && <tr><td colSpan={5} className="empty">No subjects yet.</td></tr>}
         </tbody></table></div>
     </div>

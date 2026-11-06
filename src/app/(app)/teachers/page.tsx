@@ -5,7 +5,8 @@ import { fmtDateTime } from '@/lib/time';
 import { getSettings } from '@/lib/settings';
 import { ActionForm } from '@/components/ActionForm';
 import { Badge, PageHead } from '@/components/ui';
-import { regenerateRegistrationCode, setRegistrationOpen } from '../../actions/admin';
+import Modal from '@/components/Modal';
+import { regenerateRegistrationCode, resetUserPassword, setRegistrationOpen } from '../../actions/admin';
 
 export const metadata = { title: 'Teachers' };
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ export default async function TeachersPage() {
   await requireSession(['school_admin']);
   const st = await getSettings();
   const teachers = await query<any>(
-    `select t.id, t.teacher_no, t.first_name, t.last_name, u.email, u.status, u.last_login_at, d.name as dept,
+    `select t.id, t.user_id, t.teacher_no, t.first_name, t.last_name, u.email, u.status, u.last_login_at, d.name as dept,
             (select count(*)::int from teacher_class_subject_assignments a where a.teacher_id = t.id and a.status = 'active') as loads
        from teacher_profiles t join users u on u.id = t.user_id left join departments d on d.id = t.department_id order by t.last_name, t.first_name`);
   return (
@@ -39,7 +40,13 @@ export default async function TeachersPage() {
         <tbody>{teachers.map((t: any) => (
           <tr key={t.id}><td>{t.teacher_no}</td><td><strong>{t.last_name}, {t.first_name}</strong></td><td className="small">{t.email}</td><td className="num">{t.loads}</td>
             <td className="small">{t.last_login_at ? fmtDateTime(t.last_login_at, st.timezone) : 'Never'}</td><td><Badge tone={t.status === 'active' ? 'ok' : ''}>{t.status}</Badge></td>
-            <td><Link className="btn ghost sm" href={`/teachers/${t.id}`}>Manage</Link></td></tr>))}
+            <td><div className="row-actions"><Link className="btn ghost sm" href={`/teachers/${t.id}`}>Edit</Link>
+              <Modal trigger="Reset password" title={`Reset password for ${t.first_name} ${t.last_name}`}>
+                <p>Use this when a teacher forgets their password. They will be signed out everywhere and must change the new password the first time they sign in.</p>
+                <ActionForm action={resetUserPassword} submit="Reset password" submitClass="btn gold" resetOnSuccess={false} className="stack">
+                  <input type="hidden" name="user" value={t.user_id} />
+                  <div><label htmlFor={`tp-${t.id}`}>New temporary password (optional)</label><input id={`tp-${t.id}`} name="temp" autoComplete="off" placeholder="Leave blank to generate one" /><span className="small muted">At least 8 characters with letters and numbers.</span></div>
+                </ActionForm></Modal></div></td></tr>))}
           {!teachers.length && <tr><td colSpan={7} className="empty">No teacher has registered yet. Give your teachers the sign-up link and the access code above.</td></tr>}
         </tbody></table></div>
     </div>

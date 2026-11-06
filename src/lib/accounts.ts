@@ -38,9 +38,9 @@ export async function createExternalAdminAccount(db: Db, d: { email: string; ful
 }
 
 /** Admin password reset: issues a new temporary password, forces change at next login, revokes sessions. */
-export async function resetPassword(db: Db, userId: string) {
+export async function resetPassword(db: Db, userId: string, chosen?: string) {
   const settings = await getSettings();
-  const temp = generateTempPassword();
+  const temp = chosen || generateTempPassword();
   await db.query(
     `update users set password_hash=$2, must_change_password=true, session_version=session_version+1,
             temp_password_expires_at = now() + ($3 || ' hours')::interval, updated_at=now() where id=$1`,

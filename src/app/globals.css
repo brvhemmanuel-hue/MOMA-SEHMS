@@ -128,3 +128,14 @@ details.panel[open] > summary { border-bottom: 1px solid var(--line); } details.
 .codebox { display: inline-block; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 1.6rem; font-weight: 700; letter-spacing: .18em; background: var(--gold-soft); border: 2px dashed #c9a400; border-radius: 10px; padding: .3rem 1rem; user-select: all; }
 .login-panel.wide { justify-content: flex-start; overflow-y: auto; max-height: 100vh; }
 @media (min-width: 901px) { .login:has(.wide) { grid-template-columns: minmax(0, .8fr) minmax(520px, 1.4fr); } .login-art { position: sticky; top: 0; height: 100vh; } }
+
+/* dialogs (edit, delete, reset) fit the screen and scroll inside */
+dialog.modal { border: 0; padding: 0; border-radius: 14px; width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - 24px); box-shadow: 0 20px 60px rgba(10,16,40,.35); color: var(--ink); background: #fff; overflow: hidden; }
+dialog.modal[open] { display: flex; margin: auto; }
+dialog.modal::backdrop { background: rgba(10,16,40,.55); }
+.modal-card { display: flex; flex-direction: column; width: 100%; max-height: calc(100vh - 24px); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1.1rem; border-bottom: 3px solid var(--gold); background: #f6f8fd; }
+.modal-head h2 { font-size: 1.05rem; overflow-wrap: anywhere; }
+.modal-body { padding: 1.1rem; overflow-y: auto; overscroll-behavior: contain; }
+.row-actions { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+td .row-actions form { margin: 0; }
