@@ -23,7 +23,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: 'My assignments', short_name: 'Assignments', url: '/work', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
       { name: 'New assignment', short_name: 'New', url: '/work/new', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
-      { name: 'Reports', short_name: 'Reports', url: '/reports', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+      { name: 'Find a student', short_name: 'Students', url: '/find-student', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
     ],
     // screenshots: add 1080x1920 (narrow) and 1920x1080 (wide) PNGs of the dashboard here before store listing.
   };

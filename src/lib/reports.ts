@@ -19,7 +19,8 @@ type Def = {
   run: (f: ReportFilters, scope: Scope, tz: string) => Promise<ReportResult>;
 };
 
-const ALL = ['school_admin', 'external_admin', 'teacher'] as const;
+/** Reports are for the School Administrator and the External Administrator only. */
+const ALL = ['school_admin', 'external_admin'] as const;
 const OVERSIGHT = ['school_admin', 'external_admin'] as const;
 const ASSIGN_FILTERS: FilterKey[] = ['from', 'to', 'termId', 'classId', 'subjectId', 'teacherId', 'departmentId'];
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n * 1000) / d) / 10 : null);
@@ -347,9 +348,10 @@ export type ReportMeta = {
   school: string; title: string; dateRange: string; scope: string; filtersApplied: string; generatedBy: string; generatedAt: string; basis: string;
 };
 
-export async function runReport(key: string, f: ReportFilters, s: Session) {
+export async function runReport(key: string, f: ReportFilters, s: Session, opts: { internal?: boolean } = {}) {
   const def = REPORTS.find((r) => r.key === key);
-  if (!def || !(def.roles as string[]).includes(s.role)) throw new Error('Report not available.');
+  // `internal` lets a teacher's own dashboard reuse a query, scoped to that teacher; teachers never get the Reports pages.
+  if (!def || (!opts.internal && !(def.roles as string[]).includes(s.role))) throw new Error('Report not available.');
   const st = await getSettings();
   const scope: Scope = { teacherId: s.role === 'teacher' ? s.teacherId : null };
   if (s.role === 'teacher' && !s.teacherId) throw new Error('No teacher profile.');

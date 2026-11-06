@@ -135,3 +135,68 @@ export async function setClosed(_: FormState, fd: FormData): Promise<FormState> 
   revalidatePath(`/work/${id}`);
   return { ok: close ? 'Assignment closed. History stays viewable.' : 'Assignment reopened.' };
 }
+
+/** The creator (teacher) or the School Administrator may change or remove an assignment. */
+async function manageable(assignmentId: string, s: { role: string; teacherId: string | null }) {
+  const a = await one<any>('select id, title, type, teacher_id, class_id, subject_id, assigned_at, original_due_at, current_due_at, closed_at from assignments where id=$1', [assignmentId]);
+  if (!a) return { error: 'Assignment not found.' as const };
+  if (s.role === 'teacher') {
+    if (a.teacher_id !== s.teacherId) return { error: 'You can only change assignments you created.' as const };
+    if (!(await teacherCanUse(s.teacherId!, a.class_id, a.subject_id))) return { error: 'You are no longer assigned to this class and subject.' as const };
+    if (a.closed_at) return { error: 'This assignment is closed. Ask the School Administrator.' as const };
+  }
+  return { a };
+}
+
+export async function updateAssignment(_: FormState, fd: FormData): Promise<FormState> {
+  const s = await requireSession(['teacher', 'school_admin']);
+  const id = clean(fd.get('id'));
+  if (!UUID.test(id)) return { error: 'Assignment not found.' };
+  const m = await manageable(id, s);
+  if ('error' in m) return { error: m.error };
+  const a = m.a;
+  const st = await getSettings();
+  const title = clean(fd.get('title')), type = clean(fd.get('type'));
+  const description = String(fd.get('description') ?? '').trim().slice(0, 4000) || null;
+  if (!title) return { error: 'Enter a title.' };
+  if (!['class_exercise', 'homework'].includes(type)) return { error: 'Choose class exercise or homework.' };
+  const due = zonedToUtc(String(fd.get('due') ?? ''), st.timezone);
+  if (!due) return { error: 'Enter a due date and time.' };
+  if (due < new Date(a.assigned_at)) return { error: 'The due date must be on or after the assigned date.' };
+  const dueChanged = +due !== +new Date(a.current_due_at);
+  const now = new Date();
+  if (dueChanged) {
+    if (new Date(a.current_due_at) <= now) return { error: 'The deadline has already passed. Only the School Administrator can extend it, using Extend deadline on the assignment page.' };
+    if (due <= now) return { error: 'Choose a due time in the future.' };
+  }
+  await tx(async (db) => {
+    const hasHistory = Number((await db.query<{ n: string }>('select count(*) n from assignment_deadline_history where assignment_id=$1', [id]))[0].n) > 0;
+    await db.query(
+      `update assignments set title=$2, type=$3, description=$4, current_due_at=$5, original_due_at = case when $6 then original_due_at else $5 end, updated_at=now() where id=$1`,
+      [id, title, type, description, due, hasHistory]);
+    if (dueChanged) {
+      // the deadline had not passed, so this is a correction: re-classify against the new deadline
+      await db.query(`update submission_records set status = case when submitted_at <= $2 then 'on_time' else 'late' end where assignment_id=$1 and status in ('on_time','late')`, [id, due]);
+    }
+    await audit(s.userId, 'assignment.update', 'assignment', id, { title, dueChanged, previousTitle: a.title }, db);
+  });
+  revalidatePath(`/work/${id}`); revalidatePath('/work');
+  return { ok: 'Assignment updated.' };
+}
+
+export async function deleteAssignment(_: FormState, fd: FormData): Promise<FormState> {
+  const s = await requireSession(['teacher', 'school_admin']);
+  const id = clean(fd.get('id'));
+  if (!UUID.test(id)) return { error: 'Assignment not found.' };
+  const m = await manageable(id, s);
+  if ('error' in m) return { error: m.error };
+  const a = m.a;
+  await tx(async (db) => {
+    const n = (await db.query<{ n: string }>(`select count(*) n from submission_records where assignment_id=$1 and status <> 'pending'`, [id]))[0].n;
+    // the audit entry keeps what was removed; the assignment, its register and its snapshots are deleted together
+    await audit(s.userId, 'assignment.delete', 'assignment', id, { title: a.title, recordedSubmissions: Number(n) }, db);
+    await db.query('delete from assignments where id=$1', [id]);
+  });
+  revalidatePath('/work'); revalidatePath('/dashboard');
+  redirect('/work');
+}

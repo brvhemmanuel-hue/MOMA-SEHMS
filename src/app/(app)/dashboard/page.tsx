@@ -32,7 +32,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Record
   const wk = [...weeks.entries()].sort().slice(-8);
   const pc = (n: number, d: number) => (d ? Math.round((n * 1000) / d) / 10 : 0);
 
-  const repeated = await runReport('repeated', {}, s);
+  const repeated = await runReport('repeated', {}, s, { internal: true });
   const isAdmin = s.role !== 'teacher';
   const [totals, activity, filterOpts] = isAdmin ? await Promise.all([
     query<any>(`select (select count(*)::int from teacher_profiles) teachers, (select count(*)::int from student_profiles where status='active') students,
@@ -87,7 +87,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Record
         <section className="card flat"><div style={{ padding: '1rem 1rem 0' }}><h2>Repeated non-submission or late work</h2><p className="small muted">At or above {st.repeat_threshold} missed or late submissions.</p></div>
           {repeated.result.rows.length ? <div className="tablewrap"><table><thead><tr><th>Student</th><th>Class</th><th className="num">Missed</th><th className="num">Late</th></tr></thead>
             <tbody>{repeated.result.rows.slice(0, 8).map((r: any) => <tr key={r.student_no}><td>{r.student}</td><td>{r.class}</td><td className="num">{r.missed}</td><td className="num">{r.late}</td></tr>)}</tbody></table></div> : <Empty>No students at the threshold.</Empty>}
-          <div style={{ padding: '.5rem 1rem 1rem' }}><Link href="/reports/repeated">Open full report</Link></div></section>
+          {isAdmin && <div style={{ padding: '.5rem 1rem 1rem' }}><Link href="/reports/repeated">Open full report</Link></div>}</section>
         {isAdmin && activity && <section className="card flat"><div style={{ padding: '1rem 1rem 0' }}><h2>Teacher activity</h2><p className="small muted">Registers updated and incomplete records.</p></div>
           <div className="tablewrap"><table><thead><tr><th>Teacher</th><th className="num">Created</th><th className="num">Updated</th><th className="num">Incomplete</th><th>Last update</th></tr></thead>
             <tbody>{[...activity.result.rows].sort((a: any, b: any) => b.incomplete - a.incomplete).slice(0, 8).map((r: any) => <tr key={r.teacher_no}><td>{r.teacher}</td><td className="num">{r.created}</td><td className="num">{r.updated}</td><td className="num">{r.incomplete}</td><td className="small">{r.last_update}</td></tr>)}</tbody></table></div>

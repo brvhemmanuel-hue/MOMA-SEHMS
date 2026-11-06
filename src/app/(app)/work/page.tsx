@@ -3,7 +3,8 @@ import { requireSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { getSettings } from '@/lib/settings';
 import { assignmentStatus, STATUS_LABEL, teacherScopeSql } from '@/lib/rbac';
-import { fmtDateTime } from '@/lib/time';
+import { fmtDateTime, toLocalInput } from '@/lib/time';
+import AssignmentActions from '@/components/AssignmentActions';
 import { Badge, Empty, Meter, PageHead, Pager, STATUS_TONE } from '@/components/ui';
 
 export const metadata = { title: 'Assignments' };
@@ -25,7 +26,7 @@ export default async function WorkPage({ searchParams }: { searchParams: { class
   const where = w.length ? 'where ' + w.join(' and ') : '';
   const total = Number((await query<any>(`select count(*) n from assignments a ${where}`, params))[0].n);
   const rows = await query<any>(
-    `select a.id, a.title, a.type, a.assigned_at, a.current_due_at, a.closed_at, a.expected_count, c.name class_name, sb.name subject_name, tp.first_name||' '||tp.last_name teacher,
+    `select a.id, a.title, a.type, a.description, a.teacher_id, a.assigned_at, a.current_due_at, a.closed_at, a.expected_count, c.name class_name, sb.name subject_name, tp.first_name||' '||tp.last_name teacher,
             (select count(*) from submission_records r where r.assignment_id=a.id and r.status='on_time')::int on_time,
             (select count(*) from submission_records r where r.assignment_id=a.id and r.status='late')::int late
        from assignments a join classes c on c.id=a.class_id join subjects sb on sb.id=a.subject_id join teacher_profiles tp on tp.id=a.teacher_id
@@ -45,12 +46,13 @@ export default async function WorkPage({ searchParams }: { searchParams: { class
         <button className="btn" style={{ alignSelf: 'end' }}>Filter</button></form>
       <div className="card flat">
         {rows.length ? <div className="tablewrap"><table>
-          <thead><tr><th>Assignment</th><th>Class and subject</th>{s.role !== 'teacher' && <th>Teacher</th>}<th>Due</th><th>Status</th><th>Submitted</th></tr></thead>
+          <thead><tr><th>Assignment</th><th>Class and subject</th>{s.role !== 'teacher' && <th>Teacher</th>}<th>Due</th><th>Status</th><th>Submitted</th>{s.role !== 'external_admin' && <th></th>}</tr></thead>
           <tbody>{rows.map((r: any) => { const stt = assignmentStatus(r, st.reminder_window_hours); return (
             <tr key={r.id}><td><Link href={`/work/${r.id}`}><strong>{r.title}</strong></Link><div className="small muted">{r.type === 'homework' ? 'Homework' : 'Class exercise'}</div></td>
               <td>{r.class_name}<div className="small muted">{r.subject_name}</div></td>{s.role !== 'teacher' && <td>{r.teacher}</td>}
               <td className="small nowrap">{fmtDateTime(r.current_due_at, st.timezone)}</td><td><Badge tone={STATUS_TONE[stt]}>{STATUS_LABEL[stt]}</Badge></td>
-              <td style={{ minWidth: 150 }}><Meter onTime={r.on_time} late={r.late} expected={r.expected_count} /></td></tr>); })}</tbody></table></div>
+              <td style={{ minWidth: 150 }}><Meter onTime={r.on_time} late={r.late} expected={r.expected_count} /></td>
+              {s.role !== 'external_admin' && <td>{(s.role === 'school_admin' || (r.teacher_id === s.teacherId && !r.closed_at)) && <AssignmentActions id={r.id} title={r.title} type={r.type} description={r.description ?? ''} dueLocal={toLocalInput(r.current_due_at, st.timezone)} recorded={r.on_time + r.late} tz={st.timezone} />}</td>}</tr>); })}</tbody></table></div>
           : <Empty action={s.role === 'teacher' ? <Link className="btn gold" href="/work/new">Create your first assignment</Link> : undefined}>No assignments match.</Empty>}
         <Pager base="/work" page={page} pages={Math.max(1, Math.ceil(total / PER))} params={{ class: classId, subject: subjectId, status }} />
       </div>

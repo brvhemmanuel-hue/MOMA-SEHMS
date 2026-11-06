@@ -6,7 +6,7 @@ import { PageHead } from '@/components/ui';
 export const metadata = { title: 'Reports' };
 
 export default async function ReportsPage() {
-  const s = await requireSession();
+  const s = await requireSession(['school_admin', 'external_admin']);
   const list = reportsFor(s.role);
   return (
     <div className="stack">

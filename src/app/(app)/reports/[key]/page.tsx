@@ -11,7 +11,7 @@ import { Empty, PageHead } from '@/components/ui';
 export const dynamic = 'force-dynamic';
 
 export default async function ReportPage({ params, searchParams }: { params: { key: string }; searchParams: Record<string, string | undefined> }) {
-  const s = await requireSession();
+  const s = await requireSession(['school_admin', 'external_admin']);
   const def = reportsFor(s.role).find((r) => r.key === params.key);
   if (!def) notFound();
   const st = await getSettings();

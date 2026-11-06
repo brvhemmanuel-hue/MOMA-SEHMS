@@ -11,7 +11,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const unread = Number((await one<{ n: string }>('select count(*) n from notifications where user_id=$1 and not is_read', [s.userId]))?.n ?? 0);
   const items: NavItem[] = [{ href: '/dashboard', label: 'Dashboard' }, { href: '/work', label: s.role === 'teacher' ? 'My assignments' : 'Assignments' }];
   if (s.role === 'teacher') items.push({ href: '/work/new', label: 'New assignment' }, { href: '/find-student', label: 'Find a student' }, { href: '/my-students', label: 'My students' }, { href: '/my-classes', label: 'My classes and subjects' });
-  items.push({ href: '/reports', label: 'Reports' }, { href: '/notifications', label: 'Notifications', badge: unread });
+  if (s.role !== 'teacher') items.push({ href: '/reports', label: 'Reports' });
+  items.push({ href: '/notifications', label: 'Notifications', badge: unread });
   if (s.role === 'school_admin') {
     items.push(
       { group: 'School setup' }, { href: '/classes', label: 'Classes' }, { href: '/subjects', label: 'Subjects' }, { href: '/teachers', label: 'Teachers' },

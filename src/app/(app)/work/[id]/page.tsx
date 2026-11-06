@@ -9,6 +9,7 @@ import { fmtDateTime, toLocalInput } from '@/lib/time';
 import { ActionForm } from '@/components/ActionForm';
 import Register, { type RegStudent } from '@/components/Register';
 import { Badge, Meter, PageHead, Stat, STATUS_TONE } from '@/components/ui';
+import AssignmentActions from '@/components/AssignmentActions';
 import { extendDeadline, setClosed } from '../../../actions/work';
 
 export const metadata = { title: 'Assignment' };
@@ -35,10 +36,12 @@ export default async function WorkDetail({ params }: { params: { id: string } })
   const students: RegStudent[] = recs.map((r: any) => ({ id: r.id, no: r.student_no, name: `${r.last_name}, ${r.first_name}`, status: r.status, submittedAt: toLocalInput(r.submitted_at, st.timezone), note: r.note ?? '' }));
   const canEdit = s.role !== 'external_admin' && (!a.closed_at || s.role === 'school_admin');
   const latest = snaps[snaps.length - 1];
+  const canManage = s.role === 'school_admin' || (s.role === 'teacher' && a.teacher_id === s.teacherId && !a.closed_at);
   return (
     <div className="stack">
       <PageHead title={a.title} sub={`${a.class_name} | ${a.subject_name} | ${a.type === 'homework' ? 'Homework' : 'Class exercise'} | ${a.teacher}`}>
-        <Link className="btn ghost" href="/work">All assignments</Link><Badge tone={STATUS_TONE[stt]}>{STATUS_LABEL[stt]}</Badge></PageHead>
+        <Link className="btn ghost" href="/work">All assignments</Link><Badge tone={STATUS_TONE[stt]}>{STATUS_LABEL[stt]}</Badge>
+        {canManage && <AssignmentActions id={a.id} title={a.title} type={a.type} description={a.description ?? ''} dueLocal={toLocalInput(a.current_due_at, st.timezone)} recorded={recs.filter((r: any) => r.status !== 'pending').length} tz={st.timezone} />}</PageHead>
       <div className="grid cols-4">
         <Stat label="Expected students" value={a.expected_count} hint="Fixed when created" />
         <Stat label="Submitted so far" value={submitted} tone="ok" hint="On time and late together" />

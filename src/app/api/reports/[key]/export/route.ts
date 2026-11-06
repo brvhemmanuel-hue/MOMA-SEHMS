@@ -12,6 +12,7 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest, { params }: { params: { key: string } }) {
   const s = await getSession();
   if (!s || s.mustChangePassword) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+  if (s.role === 'teacher') return NextResponse.json({ error: 'Reports are only available to administrators.' }, { status: 403 });
   const sp = req.nextUrl.searchParams;
   const format = sp.get('format') as Format;
   if (!['pdf', 'xlsx', 'csv'].includes(format)) return NextResponse.json({ error: 'Unknown format' }, { status: 400 });
